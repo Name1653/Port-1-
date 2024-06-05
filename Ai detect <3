@@ -1,0 +1,142 @@
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+
+const int trigPin = 8;
+const int echoPin = 9;
+
+
+volatile unsigned long seconds = 0;
+volatile bool timerRunning = false;
+volatile bool objectDetected = false;
+
+
+ISR(TIMER1_COMPA_vect) {
+  if (timerRunning) {
+    seconds++;
+  }
+}
+
+void setup() {
+  Serial.begin(9600); 
+  Serial.println("Waiting for obj");
+
+  
+  lcd.init();
+  lcd.backlight();
+
+  
+  lcd.setCursor(0, 0);
+  lcd.print("00:00:00:00:0:00");
+  lcd.setCursor(0, 1);
+  lcd.print("waiting for obj ");
+
+  
+  TCCR1A = 0;
+  TCCR1B = 0;
+
+  
+  OCR1A = 62500 - 1;
+
+  
+  TCCR1B |= (1 << WGM12);
+
+  
+  TCCR1B |= (1 << CS12);
+
+  
+  TIMSK1 |= (1 << OCIE1A);
+
+  
+  sei();
+
+  
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+}
+
+void loop() {
+  
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  
+  long duration = pulseIn(echoPin, HIGH);
+
+  
+  long distance = (duration / 2) / 29.1;
+
+  
+  if (distance < 10) {
+    if (!objectDetected) { 
+      objectDetected = true;
+      timerRunning = true; 
+      lcd.clear(); 
+      lcd.setCursor(0, 0);
+      lcd.print("Time: ");
+      lcd.setCursor(0, 1);
+      lcd.print("Race: ");
+      
+      
+    }
+  } else {
+    if (objectDetected) { 
+      
+      objectDetected = false;
+      
+    }
+  }
+  
+  unsigned long currentSeconds;
+  unsigned int hours, minutes, secs;
+
+  noInterrupts();
+  currentSeconds = seconds;
+  interrupts();
+
+  hours = currentSeconds / 3600;
+  minutes = (currentSeconds % 3600) / 60;
+  secs = currentSeconds % 60;
+  
+    if (timerRunning && objectDetected) {
+    lcd.setCursor(6, 1);
+    lcd.print(hours);
+    lcd.print(":");
+    if (minutes < 10) lcd.print("0");
+    lcd.print(minutes);
+    lcd.print(":");
+    if (secs < 10) lcd.print("0");
+    lcd.print(secs);
+  }
+  if (timerRunning && objectDetected); {
+
+    
+    lcd.setCursor(6, 0);
+    lcd.print(hours);
+    lcd.print(":");
+    if (minutes < 10) lcd.print("0");
+    lcd.print(minutes);
+    lcd.print(":");
+    if (secs < 10) lcd.print("0");
+    lcd.print(secs);
+   }
+  if (objectDetected) {
+    Serial.print("object detected!");
+    Serial.print("Time: ");
+    Serial.print(hours);
+    Serial.print(":");
+    if (minutes < 10) Serial.print("0");
+    Serial.print(minutes);
+    Serial.print(":");
+    if (secs < 10) Serial.print("0");
+    Serial.println(secs);
+  }
+
+  delay(500); 
+}
